@@ -1,0 +1,8 @@
+Datasets
+whisperx
+numpy
+torch
+torchaudio
+TTS
+pyyaml
+EOF
