@@ -1,8 +1,9 @@
-Datasets
-whisperx
+datasets
 numpy
+soundfile
 torch
 torchaudio
+ctc-forced-aligner
 TTS
 pyyaml
-EOF
+pickle5

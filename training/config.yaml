@@ -1,0 +1,6 @@
+paths:
+  metadata:  '/kaggle/input/datasets/derricknyarko/okyeame-clean-samples/metadata.pkl'
+  output_dir: '/kaggle/working'
+  audio: '/kaggle/input/datasets/derricknyarko/okyeame-clean-samples/audio/audio'
+  aligned_metadata: '/kaggle/input/datasets/derricknyarko/okyeame-aligned-chunks/aligned_metadata.pkl'
+  ljspeech_output: '/kaggle/working/ljspeech'
