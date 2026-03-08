@@ -100,8 +100,15 @@ def collect(dataset_name, output_dir, target=10000):
 
 
 if __name__ == "__main__":
+    
+    import yaml
+    import os
+
+    with open('config.yaml') as f:
+        config = yaml.safe_load(f)
+    
     collect(
-        dataset_name="ghananlpcommunity/ghana-english-asr-2700hrs",
-        output_dir="/kaggle/working",
-        target=10000,
+        dataset_name= os.environ.get('DATASET_NAME', config['dataset']['name']),
+        output_dir= os.environ.get('OUTPUT_DIR', config['paths']['output']),
+        target= os.environ.get('TARGET', config['dataset']['target']),
     )
