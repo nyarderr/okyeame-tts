@@ -4,6 +4,6 @@ soundfile
 torch
 torchaudio
 ctc-forced-aligner
-TTS
+git+https://github.com/idiap/coqui-ai-TTS.git
 pyyaml
 pickle5
