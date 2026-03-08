@@ -4,3 +4,8 @@ paths:
   audio: ${AUDIO_DIR}
   aligned_metadata: ${ALIGNED_METADATA_PATH} 
   ljspeech_output: ${LJSPEECH_OUTPUT}
+
+
+dataset:
+  name: 'ghananlpcommunity/ghana-english-asr-2700hrs'
+  target: 10000
