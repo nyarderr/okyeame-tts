@@ -3,7 +3,7 @@ paths:
   output: '/kaggle/working'
   audio: '/kaggle/working/audio'
   aligned_metadata: '/kaggle/working/aligned_metadata.pkl'
-  ljspeech_output: '/kaggle/working/ljspeech'
+  coqui_output: '/kaggle/working/coqui_format'
 
 
 dataset:
