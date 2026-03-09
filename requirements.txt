@@ -6,3 +6,4 @@ torchaudio
 ctc-forced-aligner
 git+https://github.com/idiap/coqui-ai-TTS.git
 pyyaml
+scipy
