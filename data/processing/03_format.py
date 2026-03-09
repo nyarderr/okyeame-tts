@@ -95,6 +95,7 @@ def format_coqui(aligned_metadata_path, output_dir, eval_split=0.1):
     for split, split_rows in zip(["train", "eval"], [train_rows, eval_rows]):
         with open(f"{output_dir}/metadata_{split}.csv", "w", newline="") as f:
             writer = csv.writer(f, delimiter="|")
+            writer.writerow(["audio_file", "text", "speaker_name"])  # header
             writer.writerows(split_rows)
 
     print("Done!")
