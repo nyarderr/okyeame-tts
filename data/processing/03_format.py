@@ -1,12 +1,12 @@
 # data/processing/03_format.py
 
-import os
 import csv
+import os
 import pickle
 import shutil
 
-
 FILLERS = {"uh", "um", "hmm", "hm", "ah"}
+
 
 def is_valid_chunk(chunk):
     text = chunk["text"].strip()
@@ -22,6 +22,7 @@ def is_valid_chunk(chunk):
         return False
 
     return True
+
 
 def format_ljspeech(aligned_metadata_path, output_dir):
     """
@@ -69,19 +70,42 @@ def format_ljspeech(aligned_metadata_path, output_dir):
         writer = csv.writer(f, delimiter="|")
         writer.writerows(csv_rows)
 
-    print(f"Done!")
+    print("Done!")
     print(f"Total chunks formatted: {len(csv_rows)}")
     print(f"Skipped (no text or invalid): {skipped}")
     print(f"Output: {output_dir}")
 
 
 if __name__ == "__main__":
+    import argparse
+
     import yaml
 
     with open("config.yaml") as f:
         config = yaml.safe_load(f)
 
+    parser = argparse.ArgumentParser(
+        description="Format aligned chunks into LJSpeech format"
+    )
+    parser.add_argument(
+        "--input_dir",
+        type=str,
+        default=config["paths"]["output"],
+        help="Path to aligned metadata pkl",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default=config["paths"]["ljspeech_output"],
+        help="Directory to save LJSpeech format output",
+    )
+
+    args = parser.parse_args()
+
+    # derive aligned_metadata path from input_dir
+    aligned_metadata_path = os.path.join(args.input_dir, "aligned_metadata.pkl")
+
     format_ljspeech(
-        aligned_metadata_path=config["paths"]["aligned_metadata"],
-        output_dir=config["paths"]["ljspeech_output"],
+        aligned_metadata_path=aligned_metadata_path,
+        output_dir=args.output_dir,
     )

@@ -84,6 +84,7 @@ def save_checkpoint(aligned_chunks, processed_idx, failed, output_dir):
 
 
 def run_alignment(metadata, output_dir, target, checkpoint_every=100):
+    
     os.makedirs(f"{output_dir}/aligned_audio", exist_ok=True)
 
     # resume from checkpoint if exists
@@ -191,7 +192,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--target",
         type=int,
-        default=config["datasets"]["target"],
+        default=config["dataset"]["target"],
         help="Number of samples to process",
     )
     args = parser.parse_args()
