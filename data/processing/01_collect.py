@@ -103,12 +103,20 @@ if __name__ == "__main__":
     
     import yaml
     import os
+    import argparse
 
     with open('config.yaml') as f:
         config = yaml.safe_load(f)
+
     
+    parser = argparse.ArgumentParser(description="Collect clean audio-text pairs")
+    parser.add_argument("--dataset_name", type=str, default=config["dataset"]["name"])
+    parser.add_argument("--output_dir", type=str, default=config["paths"]["output"])
+    parser.add_argument("--target", type=int, default=config["dataset"]["target"])
+    args = parser.parse_args()
+
     collect(
-        dataset_name= os.environ.get('DATASET_NAME', config['dataset']['name']),
-        output_dir= os.environ.get('OUTPUT_DIR', config['paths']['output']),
-        target= os.environ.get('TARGET', config['dataset']['target']),
+        dataset_name= args.dataset_name,
+        output_dir=args.output_dir,
+        target=args.target,
     )

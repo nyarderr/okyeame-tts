@@ -1,9 +1,9 @@
 paths:
-  metadata: ${METADATA_PATH} 
-  output_dir: ${OUTPUT_DIR}
-  audio: ${AUDIO_DIR}
-  aligned_metadata: ${ALIGNED_METADATA_PATH} 
-  ljspeech_output: ${LJSPEECH_OUTPUT}
+  metadata: '/kaggle/working/metadata.pkl'
+  output: '/kaggle/working'
+  audio: '/kaggle/working/audio'
+  aligned_metadata: '/kaggle/working/aligned_metadata.pkl'
+  ljspeech_output: '/kaggle/working/ljspeech'
 
 
 dataset:

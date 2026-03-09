@@ -83,7 +83,7 @@ def save_checkpoint(aligned_chunks, processed_idx, failed, output_dir):
     print(f"Checkpoint — {len(aligned_metadata)} chunks from {processed_idx} samples")
 
 
-def run_alignment(metadata, output_dir, target=10000, checkpoint_every=100):
+def run_alignment(metadata, output_dir, target, checkpoint_every=100):
     os.makedirs(f"{output_dir}/aligned_audio", exist_ok=True)
 
     # resume from checkpoint if exists
@@ -160,24 +160,51 @@ def run_alignment(metadata, output_dir, target=10000, checkpoint_every=100):
 
 
 if __name__ == "__main__":
+    import argparse
     import os
     import pickle
 
     import yaml
 
-    # load config
     with open("config.yaml") as f:
         config = yaml.safe_load(f)
 
+    parser = argparse.ArgumentParser(description="Force Align audio samples")
+    parser.add_argument(
+        "--metadata_path",
+        type=str,
+        default=config["paths"]["metadata"],
+        help="Path to metadata pkl",
+    )
+    parser.add_argument(
+        "--audio_dir",
+        type=str,
+        default=config["paths"]["audio"],
+        help="Directory containing audio wav files",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default=config["paths"]["output"],
+        help="Directory to save output",
+    )
+    parser.add_argument(
+        "--target",
+        type=int,
+        default=config["datasets"]["target"],
+        help="Number of samples to process",
+    )
+    args = parser.parse_args()
+
     # load metadata
-    with open(config["paths"]["metadata"], "rb") as f:
+    with open(args.metadata_path, "rb") as f:
         saved = pickle.load(f)
         metadata = saved["metadata"]
 
     # remap audio paths to actual location
-    audio_dir = config["paths"]["audio_dir"]
+    audio_dir = args.audio_dir
     for sample in metadata:
         filename = os.path.basename(sample["audio_path"])
         sample["audio_path"] = f"{audio_dir}/{filename}"
 
-    run_alignment(metadata, output_dir=config["paths"]["output"])
+    run_alignment(metadata, output_dir=args.output_dir, target=args.target)
