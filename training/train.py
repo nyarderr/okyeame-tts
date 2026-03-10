@@ -76,7 +76,7 @@ def train(
         max_text_length=200,
         mel_norm_file=MEL_NORM,
         dvae_checkpoint=DVAE,
-        xtts_checkpoint=CHECKPOINT,
+        xtts_checkpoint=args.restore_path if args.restore_path else CHECKPOINT,
         tokenizer_file=TOKENIZER,
         gpt_num_audio_tokens=1026,
         gpt_start_audio_token=1024,
