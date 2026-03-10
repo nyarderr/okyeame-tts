@@ -143,7 +143,7 @@ def train(
     # --- train ---
     trainer = Trainer(
         TrainerArgs(
-            restore_path=None,
+            restore_path=args.restore_path,
             skip_train_epoch=False,
             start_with_eval=False,
             grad_accum_steps=grad_accum,
@@ -197,6 +197,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--grad_accum", type=int, default=1, help="Gradient accumulation steps"
     )
+    parser.add_argument("--restore_path", type=str, default=None,
+                    help="Path to checkpoint to resume training from")
     args = parser.parse_args()
 
     train(
