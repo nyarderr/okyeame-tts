@@ -39,7 +39,7 @@ def is_valid_chunk(chunk):
     return True
 
 
-def format_coqui(aligned_metadata_path, output_dir, eval_split=0.1):
+def format_coqui(aligned_metadata_path, output_dir, eval_split=0.1, audio_dir=None):
     """
     Converts aligned chunks into Coqui format for XTTS v2 fine-tuning.
 
@@ -56,6 +56,12 @@ def format_coqui(aligned_metadata_path, output_dir, eval_split=0.1):
     with open(aligned_metadata_path, "rb") as f:
         saved = pickle.load(f)
         metadata = saved["metadata"]
+
+    # remap audio paths if audio_dir provided
+    if audio_dir:
+        for chunk in metadata:
+            filename = os.path.basename(chunk["audio_path"])
+            chunk["audio_path"] = f"{audio_dir}/{filename}"
 
     print(f"Formatting {len(metadata)} chunks")
 
@@ -133,6 +139,12 @@ if __name__ == "__main__":
         type=float,
         default=0.1,
         help="Proportion of data to use for evaluation",
+    )
+    parser.add_argument(
+        "--audio_dir",
+        type=str,
+        default=None,
+        help="Override audio directory in metadata path"
     )
 
     args = parser.parse_args()
