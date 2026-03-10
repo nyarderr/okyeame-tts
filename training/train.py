@@ -106,7 +106,7 @@ def train(
         print_step=50,
         plot_step=100,
         log_model_step=100,
-        save_step=1000,
+        save_step=9000,
         save_n_checkpoints=1,
         save_checkpoints=True,
         print_eval=False,
@@ -191,7 +191,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--language", type=str, default="en", help="Language code")
     parser.add_argument(
-        "--epochs", type=int, default=10, help="Number of training epochs"
+        "--epochs", type=int, default=5, help="Number of training epochs"
     )
     parser.add_argument("--batch_size", type=int, default=3, help="Batch size")
     parser.add_argument(
