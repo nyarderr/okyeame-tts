@@ -156,4 +156,5 @@ if __name__ == "__main__":
         aligned_metadata_path=aligned_metadata_path,
         output_dir=args.output_dir,
         eval_split=args.eval_split,
+        audio_dir=args.audio_dir
     )
