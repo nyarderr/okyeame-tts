@@ -108,7 +108,7 @@ def train(
         log_model_step=100,
         save_step=9000,
         save_n_checkpoints=1,
-        save_checkpoints=True,
+        save_checkpoints=False,
         print_eval=False,
         optimizer="AdamW",
         optimizer_wd_only_on_weights=True,
