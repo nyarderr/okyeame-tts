@@ -10,7 +10,7 @@ A fine-tuned XTTS v2 text-to-speech model that speaks English with a natural Gha
 
 Every major TTS system — ElevenLabs, Google, Amazon Polly — speaks with a Western accent by default. Ghanaian English is a distinct, legitimate variety of English spoken by millions, yet it has little representation in open-source TTS.
 
-Some prior work exists. [Afro-TTS](https://huggingface.co/intronhealth/afro-tts) (`intronhealth/afro-tts`) is a pan-African accented English TTS system that covers 86 African accents including Ghanaian — a significant achievement. [Abena AI](https://abena.ai) offers a closed-source Ghanaian English TTS product. Both are valuable contributions to the space.
+Some prior work exists. [Afro-TTS](https://huggingface.co/intronhealth/afro-tts) (`intronhealth/afro-tts`) is a pan-African accented English TTS system that covers 86 African accents including Ghanaian — a significant achievement. [Abena AI](https://abena.mobobi.com/) offers a closed-source Ghanaian English TTS product. Both are valuable contributions to the space.
 
 okyeame-tts takes a different approach: **depth over breadth**. Rather than covering many African accents broadly, it trains exclusively on Ghanaian English speech — 30,000+ aligned audio chunks from the Ghana English ASR dataset — optimizing specifically for the phonetic and prosodic patterns of Ghanaian English. The Ghanaian accent is the native voice of the model, not one accent among many.
 
