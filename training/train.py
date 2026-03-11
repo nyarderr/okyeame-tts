@@ -6,7 +6,6 @@ import os
 
 import yaml
 from trainer import Trainer, TrainerArgs
-#from trainer.trainer import TrainerCallback
 from TTS.config.shared_configs import BaseDatasetConfig
 from TTS.tts.configs.xtts_config import XttsAudioConfig
 from TTS.tts.datasets import load_tts_samples
@@ -16,25 +15,6 @@ from TTS.tts.layers.xtts.trainer.gpt_trainer import (
     GPTTrainerConfig,
 )
 from TTS.utils.manage import ModelManager
-
-class DiskCleanupCallback(TrainerCallback):
-    def on_eval_end(self, trainer):
-        """Delete duplicate best_model.pth after each eval to save disk space."""
-        import glob
-        output_path = trainer.output_path
-        
-        # Find all best_model files
-        all_best = glob.glob(os.path.join(output_path, "best_model*.pth"))
-        
-        if len(all_best) <= 1:
-            return
-            
-        # Keep only the numbered one (best_model_XXXX.pth), delete best_model.pth
-        for f in all_best:
-            if f.endswith("best_model.pth"):  # the unnumbered duplicate
-                print(f" > CLEANUP: Deleting duplicate {f}")
-                os.remove(f)
-                break
                 
 def train(
     train_csv,
@@ -172,7 +152,6 @@ def train(
         model=model,
         train_samples=train_samples,
         eval_samples=eval_samples,
-        #callbacks={"disk_cleanup": DiskCleanupCallback()},
     )
 
     trainer.fit()
