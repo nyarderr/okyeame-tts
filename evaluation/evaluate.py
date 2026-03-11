@@ -28,6 +28,17 @@ def isin_mps_friendly(elements, test_elements):
 pt_utils.isin_mps_friendly = isin_mps_friendly
 
 
+original_load = torch.load
+
+
+def patched_load(*args, **kwargs):
+    kwargs.setdefault("weights_only", False)
+    return original_load(*args, **kwargs)
+
+
+torch.load = patched_load
+
+
 def score_utmos(wav_path, predictor):
     wav, sr = torchaudio.load(wav_path)
     if sr != 16000:
