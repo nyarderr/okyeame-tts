@@ -2,13 +2,19 @@
 
 > **Okyeame** (ɔkyeame) — the royal linguist and spokesperson in Ghanaian tradition, renowned for clarity, eloquence, and the power of voice.
 
-A fine-tuned XTTS v2 text-to-speech model that speaks English with a natural Ghanaian accent. Built on the `ghananlpcommunity/ghana-english-asr-2700hrs` dataset, okyeame-tts is the first open-source TTS model trained specifically on Ghanaian English speech.
+A fine-tuned XTTS v2 text-to-speech model that speaks English with a natural Ghanaian accent. Built on the `ghananlpcommunity/ghana-english-asr-2700hrs` dataset — 30,000+ training chunks drawn exclusively from Ghanaian English speech — okyeame-tts is the first open-source TTS model **fine-tuned entirely and specifically on Ghanaian English data**.
 
 ---
 
 ## Why This Exists
 
-Commercial TTS systems like ElevenLabs support voice cloning — but they require a reference audio clip every time. okyeame-tts is different: it speaks Ghanaian English **by default**, with no reference audio needed. Ghanaian English is the native voice, not an imitation.
+Every major TTS system — ElevenLabs, Google, Amazon Polly — speaks with a Western accent by default. Ghanaian English is a distinct, legitimate variety of English spoken by millions, yet it has little representation in open-source TTS.
+
+Some prior work exists. [Afro-TTS](https://huggingface.co/intronhealth/afro-tts) (`intronhealth/afro-tts`) is a pan-African accented English TTS system that covers 86 African accents including Ghanaian — a significant achievement. [Abena AI](https://abena.ai) offers a closed-source Ghanaian English TTS product. Both are valuable contributions to the space.
+
+okyeame-tts takes a different approach: **depth over breadth**. Rather than covering many African accents broadly, it trains exclusively on Ghanaian English speech — 30,000+ aligned audio chunks from the Ghana English ASR dataset — optimizing specifically for the phonetic and prosodic patterns of Ghanaian English. The Ghanaian accent is the native voice of the model, not one accent among many.
+
+As a zero-shot voice cloning model, it can clone any Ghanaian voice from a short reference audio clip — giving access to thousands of distinct Ghanaian voices from the training corpus.
 
 ---
 
@@ -17,11 +23,38 @@ Commercial TTS systems like ElevenLabs support voice cloning — but they requir
 | Stage | Status | Description |
 |---|---|---|
 | Data Collection | ✅ Done | 10,000 samples, 37hrs from ASR dataset |
-| Forced Alignment | 🔄 In Progress | Chunking audio with text alignment |
-| LJSpeech Formatting | ⏳ Pending | Coqui format with train/eval split |
-| XTTS v2 Fine-tuning | ⏳ Pending | Fine-tune on aligned Ghanaian English |
-| Evaluation | ⏳ Pending | MOS scoring + accent evaluation |
+| Forced Alignment | ✅ Done | 30,536 chunks, 29.98 hours, avg 3.5s |
+| Coqui Format | ✅ Done | 27,038 train / 3,005 eval samples at 22050Hz |
+| XTTS v2 Fine-tuning | ✅ Done | Stage 1 complete — model sounds Ghanaian |
+| Evaluation (UTMOS) | ✅ Done | Top-20 reference speakers scored and saved |
+| Evaluation (WER + MOS) | ⏳ Stage 2 | Formal intelligibility and human evaluation |
 | HuggingFace Release | ⏳ Pending | Stage 2 (50k-100k samples) |
+
+---
+
+## Model Architecture
+
+XTTS v2 is a multi-stage pipeline. Fine-tuning targets the GPT-2 decoder only — the component that learns the mapping from text to audio codes conditioned on a speaker embedding.
+
+```
+TEXT INPUT
+    ↓
+[Tokenizer]           — converts text to token IDs (vocab.json)
+    ↓
+[GPT-2 Decoder] ◄─── [Speaker Encoder] ◄─── reference wav
+    │                   extracts 512-dim
+    │                   speaker embedding
+    ↓
+[DVAE]                — encodes reference audio into discrete codebook tokens
+    ↓
+[HiFi-GAN Vocoder]    — converts predicted audio codes → waveform (24000Hz)
+    ↓
+AUDIO OUTPUT
+```
+
+**What fine-tuning changes:** The GPT-2 decoder learns Ghanaian English phonetic and prosodic patterns from the training data. The speaker encoder and vocoder are frozen — voice cloning capability and audio quality are preserved.
+
+**Why eval loss plateaus:** With 10,000 samples the decoder overfits after ~1 epoch. Eval loss stopped improving at 3.527. Training loss continued decreasing. This is expected at Stage 1 scale — the model has learned the accent but needs more data to generalize further.
 
 ---
 
@@ -39,7 +72,7 @@ okyeame-tts/
 ├── training/
 │   └── train.py                   # Fine-tune XTTS v2 on formatted dataset
 ├── evaluation/
-│   └── evaluate.py                # MOS scoring and accent evaluation
+│   └── evaluate.py                # UTMOS reference speaker scoring
 └── notebooks/
     └── exploration.ipynb          # Exploratory data analysis
 ```
@@ -60,7 +93,7 @@ pip install -r requirements.txt
 
 ### 2. Apply the Monkey Patch (Required)
 
-Due to a version incompatibility between `coqui-ai-TTS` and newer versions of `transformers`, a missing function must be patched before importing TTS modules. Run this **once per environment** before running any script:
+Due to a version incompatibility between `coqui-ai-TTS` and newer versions of `transformers`, a missing function must be patched before importing TTS modules. Run this **once per session** before any TTS import:
 
 ```python
 import transformers.pytorch_utils as pt_utils
@@ -72,56 +105,58 @@ def isin_mps_friendly(elements, test_elements):
 pt_utils.isin_mps_friendly = isin_mps_friendly
 ```
 
-Or patch the transformers file directly (persists across sessions):
+> **Root cause:** `isin_mps_friendly` was removed from `transformers.pytorch_utils` in newer versions of `transformers`. The coqui-ai-TTS fork still imports it. The fix re-adds the function using `torch.isin`, which is the underlying implementation.
+
+### 3. Run Inference
 
 ```python
-patch = '''
-import torch
+# Apply monkey patch first (see above)
+from TTS.api import TTS
 
-def isin_mps_friendly(elements, test_elements):
-    return torch.isin(elements, test_elements)
-'''
+# Load fine-tuned model
+tts = TTS()
+tts.load_tts_model_by_path(
+    model_path="path/to/best_model_9013.pth",
+    config_path="path/to/config.json",
+)
 
-file_path = '/path/to/site-packages/transformers/pytorch_utils.py'
+# vocab.json must be in the same directory as config.json
+# Download from: https://huggingface.co/coqui/XTTS-v2/resolve/main/vocab.json
 
-with open(file_path, 'r') as f:
-    content = f.read()
-
-if 'isin_mps_friendly' not in content:
-    with open(file_path, 'a') as f:
-        f.write(patch)
-    print("Patched!")
-else:
-    print("Already patched!")
+# Generate speech (clones voice from reference wav)
+tts.tts_to_file(
+    text="The government has announced new policies to support local businesses in Ghana.",
+    speaker_wav="path/to/reference_speaker.wav",
+    language="en",
+    file_path="output.wav"
+)
 ```
 
-> **Root cause:** `isin_mps_friendly` was removed from `transformers.pytorch_utils` in newer versions of the `transformers` library. The coqui-ai-TTS fork still imports it from there. The fix adds the function back using `torch.isin`, which is the underlying implementation.
+> **Reference audio:** Any clean wav file from the training corpus can be used as a speaker reference. The model clones the voice characteristics while preserving the Ghanaian accent. UTMOS scoring (see Evaluation) can be used to identify the highest quality reference speakers.
+
+> **Long text:** XTTS v2 warns for inputs over 250 characters but handles them internally. For production use, split text at sentence boundaries and concatenate audio outputs for cleaner results.
 
 ---
 
 ## Configuration
 
-All paths and dataset parameters are set in `config.yaml` at the project root. Scripts read from this file and allow any value to be overridden via command-line arguments.
+All paths and dataset parameters are set in `config.yaml` at the project root.
 
 ```yaml
 paths:
   metadata: '/kaggle/working/metadata.pkl'
   audio_dir: '/kaggle/working/audio'
   output: '/kaggle/working'
-  ljspeech_output: '/kaggle/working/ljspeech'
+  coqui_output: '/kaggle/working/coqui_format'
 
 dataset:
   name: 'ghananlpcommunity/ghana-english-asr-2700hrs'
   target: 10000
 ```
 
-Update `config.yaml` for your environment or override any value at runtime using `--argument` flags (see each script below).
-
 ---
 
 ## Pipeline
-
-The full pipeline runs in four steps. Each step produces output consumed by the next.
 
 ```
 01_collect.py  →  metadata.pkl + audio/*.wav
@@ -130,7 +165,9 @@ The full pipeline runs in four steps. Each step produces output consumed by the 
       ↓
 03_format.py   →  wavs/*.wav + metadata_train.csv + metadata_eval.csv
       ↓
-train.py       →  best_model.pth (fine-tuned XTTS v2)
+train.py       →  best_model_XXXX.pth (fine-tuned XTTS v2)
+      ↓
+evaluate.py    →  utmos_scores.csv + top reference speakers
 ```
 
 ---
@@ -151,29 +188,22 @@ python data/processing/01_collect.py \
   --target 10000
 ```
 
-**Arguments:**
-
-| Argument | Default (from config) | Description |
-|---|---|---|
-| `--dataset_name` | `ghananlpcommunity/ghana-english-asr-2700hrs` | HuggingFace dataset name |
-| `--output_dir` | `config.paths.output` | Directory to save metadata.pkl and audio/ |
-| `--target` | `config.dataset.target` | Number of samples to collect |
-
 **Output:**
 ```
 output_dir/
-├── metadata.pkl          # list of {text, audio_path, duration, sampling_rate}
+├── metadata.pkl
 └── audio/
     ├── 00000.wav
-    ├── 00001.wav
     └── ...
 ```
+
+**Stage 1 result:** 10,000 samples, 37.36 hours, 16000Hz
 
 ---
 
 ### Step 2 — Forced Alignment
 
-Uses `ctc-forced-aligner` to align transcripts to audio at the word level, then splits audio into natural chunks of 2–7 seconds at pauses and punctuation boundaries.
+Uses `ctc-forced-aligner` to align transcripts to audio at the word level, then splits audio into natural chunks at pauses and punctuation boundaries.
 
 ```bash
 python data/processing/02_align.py \
@@ -183,53 +213,36 @@ python data/processing/02_align.py \
   --target 10000
 ```
 
-**Arguments:**
-
-| Argument | Default (from config) | Description |
-|---|---|---|
-| `--metadata_path` | `config.paths.metadata` | Path to metadata.pkl from Step 1 |
-| `--audio_dir` | `config.paths.audio_dir` | Directory containing audio wav files |
-| `--output_dir` | `config.paths.output` | Directory to save aligned output |
-| `--target` | `config.dataset.target` | Number of samples to process |
-
-**Checkpointing:** The script saves a checkpoint every 100 samples to `output_dir/aligned_metadata.pkl`. If the session is interrupted, rerunning the script automatically resumes from the last checkpoint.
+**Checkpointing:** Saves every 100 samples to `aligned_metadata.pkl`. Interrupted runs resume automatically.
 
 **Output:**
 ```
 output_dir/
-├── aligned_metadata.pkl     # list of {text, audio_path, duration, sampling_rate}
+├── aligned_metadata.pkl
 └── aligned_audio/
-    ├── 00000.wav             # 2–7 second aligned chunks
-    ├── 00001.wav
+    ├── 00000.wav        # 2–7 second aligned chunks at 16000Hz
     └── ...
 ```
 
-**Expected runtime:**
-- GPU (P100): ~3.8s per sample → ~10 hours for 10,000 samples
-- CPU: ~30s per sample → ~80 hours for 10,000 samples
+**Stage 1 result:** 30,536 chunks, 0 failures, 29.98 hours, avg 3.5s per chunk
 
-> **Tip (Kaggle):** Run overnight on GPU. Monitor the ETA printed every 50 samples. Save `aligned_metadata.pkl` as a Kaggle Dataset immediately after completion — `/kaggle/working` is wiped when the session ends.
+**Expected runtime (Kaggle P100):** ~3.8s per sample → ~10 hours for 10,000 samples
 
 ---
 
 ### Step 3 — Coqui Format
 
-Converts aligned chunks into the Coqui CSV format expected by XTTS v2 fine-tuning. Resamples audio from 16000Hz to 22050Hz and splits into train/eval sets.
+Converts aligned chunks into Coqui CSV format. Resamples audio from 16000Hz to 22050Hz. Splits into train/eval.
 
 ```bash
 python data/processing/03_format.py \
   --input_dir /kaggle/working \
+  --audio_dir /kaggle/input/datasets/derricknyarko/okyeame-aligned-chunks-v2/aligned_audio \
   --output_dir /kaggle/working/coqui_format \
   --eval_split 0.1
 ```
 
-**Arguments:**
-
-| Argument | Default (from config) | Description |
-|---|---|---|
-| `--input_dir` | `config.paths.output` | Directory containing aligned_metadata.pkl |
-| `--output_dir` | `config.paths.ljspeech_output` | Directory to save formatted dataset |
-| `--eval_split` | `0.1` | Fraction of data for evaluation |
+> **Note:** Use `--audio_dir` to remap audio paths when loading from a Kaggle input dataset across sessions.
 
 **Filters applied:**
 - Skips chunks with empty text
@@ -240,85 +253,124 @@ python data/processing/03_format.py \
 ```
 output_dir/
 ├── wavs/
-│   ├── 00000.wav          # resampled to 22050Hz
-│   └── ...
-├── metadata_train.csv     # 90% of data
-└── metadata_eval.csv      # 10% of data
+├── metadata_train.csv
+└── metadata_eval.csv
 ```
 
-**CSV format (Coqui):**
+**CSV format:**
 ```
 audio_file|text|speaker_name
 wavs/00000.wav|he made mention that if your pastor|okyeame_speaker
-wavs/00001.wav|there is no two ways about it|okyeame_speaker
 ```
+
+**Stage 1 result:** 27,038 train / 3,005 eval / 493 skipped
 
 ---
 
 ### Step 4 — Fine-tune XTTS v2
 
-Downloads the base XTTS v2 checkpoint and fine-tunes it on your formatted Ghanaian English dataset using the GPT trainer.
+Downloads the base XTTS v2 checkpoint and fine-tunes the GPT-2 decoder on the formatted dataset.
 
 ```bash
 python training/train.py \
   --train_csv /kaggle/working/coqui_format/metadata_train.csv \
   --eval_csv /kaggle/working/coqui_format/metadata_eval.csv \
   --output_dir /kaggle/working \
-  --epochs 10 \
-  --batch_size 3
+  --epochs 1
 ```
 
-**Arguments:**
+**To resume from a saved checkpoint:**
 
-| Argument | Default (from config) | Description |
-|---|---|---|
-| `--train_csv` | derived from `config.paths.ljspeech_output` | Path to training CSV |
-| `--eval_csv` | derived from `config.paths.ljspeech_output` | Path to eval CSV |
-| `--output_dir` | `config.paths.output` | Directory to save model checkpoints |
-| `--language` | `en` | Language code |
-| `--epochs` | `10` | Number of training epochs |
-| `--batch_size` | `3` | Batch size per step |
-| `--grad_accum` | `1` | Gradient accumulation steps |
-
-**What gets downloaded automatically:**
-- `dvae.pth` — Discrete VAE checkpoint
-- `mel_stats.pth` — Mel spectrogram normalization stats
-- `vocab.json` — XTTS v2 tokenizer
-- `model.pth` — Base XTTS v2 checkpoint (1.87GB)
-
-**Output:**
-```
-output_dir/run/training/
-├── XTTS_v2_original/
-│   ├── dvae.pth
-│   ├── mel_stats.pth
-│   ├── vocab.json
-│   └── model.pth
-└── okyeame_xtts_ft-{date}/
-    ├── best_model.pth       # best checkpoint by eval loss
-    ├── checkpoint_1000.pth  # periodic checkpoint
-    └── config.json          # training configuration
+```bash
+python training/train.py \
+  --train_csv /kaggle/working/coqui_format/metadata_train.csv \
+  --eval_csv /kaggle/working/coqui_format/metadata_eval.csv \
+  --output_dir /kaggle/working \
+  --restore_path /kaggle/input/datasets/derricknyarko/okyeame-xtts-final-stage1/best_model_9013.pth \
+  --epochs 1
 ```
 
-**Expected runtime (GPU P100):**
-- ~7 minutes per epoch
-- 10 epochs ≈ ~70 minutes
+**Training configuration:**
+
+| Parameter | Value |
+|---|---|
+| Optimizer | AdamW |
+| Learning rate | 5e-6 |
+| Batch size | 3 |
+| Mixed precision | False (float32) |
+| Save frequency | every 9,000 steps |
+| Checkpoint saving | best model only |
+
+**Stage 1 training history:**
+
+| Epoch | Train Loss (start) | Eval Loss | Best Model |
+|---|---|---|---|
+| 0 | 4.463 | 3.527 | best_model_9013.pth ✅ |
+| 1 (partial) | ~3.3 | — | interrupted |
+| 2 | 2.848 | 3.580 | no improvement |
+| 3 | 2.404 | 3.692 | no improvement |
+
+Eval loss plateaued at **3.527** after epoch 0. The model learned the Ghanaian accent. Further improvement requires more data (Stage 2).
+
+> **Disk management (Kaggle):** Each model checkpoint is ~5.3GB. The trainer always saves two files after evaluation. Delete the unnumbered `best_model.pth` immediately after each epoch to avoid filling the 20GB `/kaggle/working` limit.
 
 ---
 
-## Running in Kaggle
+## Evaluation
 
-Kaggle resets `/kaggle/working` between sessions. Follow this workflow:
+### UTMOS — Reference Speaker Scoring
+
+UTMOS (Unified TTS MOS) is an automated Mean Opinion Score predictor trained on human listening ratings. It scores audio quality on a 1–5 scale, mimicking how a human listener would rate naturalness. Used here to rank all 30,535 training chunks and identify the best reference speakers for voice cloning.
 
 ```python
-# Cell 1 — Install dependencies
+import torch
+import torchaudio
+
+predictor = torch.hub.load("tarepan/SpeechMOS:v1.2.0", "utmos22_strong", trust_repo=True)
+
+def score_utmos(wav_path):
+    wav, sr = torchaudio.load(wav_path)
+    if sr != 16000:
+        wav = torchaudio.functional.resample(wav, sr, 16000)
+    return predictor(wav, sr).item()
+```
+
+Run the full scoring pipeline:
+
+```bash
+python evaluation/evaluate.py \
+  --model_path /kaggle/working/inference_model/best_model_9013.pth \
+  --config_path /kaggle/working/inference_model/config.json \
+  --ref_wavs_csv /kaggle/input/datasets/derricknyarko/okyeame-xtts-utmos-scores/okyeame-xtts-utmos-scores.csv \
+  --output_dir /kaggle/working/eval_output \
+  --top_n 20
+```
+
+UTMOS scores range 1–5. Prefer reference speakers scoring above 3.5. The top-20 scoring files from the corpus make excellent preset voices for a demo.
+
+**Saved scores:** `derricknyarko/okyeame-xtts-utmos-scores` on Kaggle (~2 hours to score all 30,535 chunks on T4 GPU).
+
+### Planned — Stage 2
+
+- **WER (Word Error Rate):** Transcribe generated audio with Whisper and compare to input text. Measures intelligibility.
+- **MOS (Mean Opinion Score):** Human listeners rate naturalness 1–5. Gold standard before HuggingFace release.
+- **SECS (Speaker Encoder Cosine Similarity):** Cosine similarity between speaker embeddings of generated and reference audio. Measures voice cloning fidelity.
+
+---
+
+## Kaggle Workflow
+
+Kaggle resets `/kaggle/working` between sessions. Follow this workflow each session:
+
+```python
+# Cell 1 — Install
 !pip install datasets numpy soundfile torchaudio ctc-forced-aligner pyyaml scipy -q
 !pip install git+https://github.com/idiap/coqui-ai-TTS.git -q
 
 # Cell 2 — Clone repo
 !git clone https://github.com/derricknyarko/okyeame-tts.git
 
-# Cell 3 — Apply monkey patch (required)
+# Cell 3 — Monkey patch (required before any TTS import)
 import transformers.pytorch_utils as pt_utils
 import torch
 
@@ -327,53 +379,70 @@ def isin_mps_friendly(elements, test_elements):
 
 pt_utils.isin_mps_friendly = isin_mps_friendly
 
-# Cell 4 — Run pipeline
-!cd /kaggle/working/okyeame-tts && python data/processing/01_collect.py --output_dir /kaggle/working --target 10000
-!cd /kaggle/working/okyeame-tts && python data/processing/02_align.py --metadata_path /kaggle/working/metadata.pkl --audio_dir /kaggle/working/audio --output_dir /kaggle/working --target 10000
-!cd /kaggle/working/okyeame-tts && python data/processing/03_format.py --input_dir /kaggle/working --output_dir /kaggle/working/coqui_format
-!cd /kaggle/working/okyeame-tts && python training/train.py --train_csv /kaggle/working/coqui_format/metadata_train.csv --eval_csv /kaggle/working/coqui_format/metadata_eval.csv --output_dir /kaggle/working
+# Cell 4 — Regenerate coqui_format wavs from saved aligned chunks
+!cd /kaggle/working/okyeame-tts && python data/processing/03_format.py \
+  --input_dir /kaggle/input/datasets/derricknyarko/okyeame-aligned-chunks-v2 \
+  --audio_dir /kaggle/input/datasets/derricknyarko/okyeame-aligned-chunks-v2/aligned_audio \
+  --output_dir /kaggle/working/coqui_format
+
+# Cell 5 — Resume training from last saved checkpoint
+!cd /kaggle/working/okyeame-tts && python training/train.py \
+  --train_csv /kaggle/working/coqui_format/metadata_train.csv \
+  --eval_csv /kaggle/working/coqui_format/metadata_eval.csv \
+  --output_dir /kaggle/working \
+  --restore_path /kaggle/input/datasets/derricknyarko/okyeame-xtts-final-stage1/best_model_9013.pth \
+  --epochs 1
 ```
 
-> **Important:** Save intermediate outputs as Kaggle Datasets after each major step. `/kaggle/working` is temporary. Committing a notebook only saves the notebook, not the data files.
+**After each epoch:** Save best model to a new Kaggle Dataset version. Delete the duplicate `best_model.pth` before saving to avoid uploading 10GB.
 
 ---
 
-## Dataset
+## Saved Kaggle Datasets
 
-**Source:** `ghananlpcommunity/ghana-english-asr-2700hrs`  
-**Size used:** 10,000 samples (~37 hours)  
-**Language:** Ghanaian English  
-**Sample rate:** 16000Hz (resampled to 22050Hz for training)
-
-The dataset contains transcribed Ghanaian English speech collected from community members across Ghana. It covers a range of speakers, topics, and recording conditions.
+| Dataset | Contents | Notes |
+|---|---|---|
+| `derricknyarko/okyeame-clean-samples` | metadata.pkl + audio wavs | Step 1 output |
+| `derricknyarko/okyeame-aligned-chunks-v2` | aligned_metadata.pkl + aligned_audio/ | Step 2 output |
+| `derricknyarko/okyeame-coqui-format` | metadata_train.csv + metadata_eval.csv | Step 3 CSVs — regenerate wavs each session |
+| `derricknyarko/okyeame-xtts-final-stage1` | best_model_9013.pth + config.json | Stage 1 final model |
+| `derricknyarko/okyeame-xtts-utmos-scores` | okyeame-xtts-utmos-scores.csv | UTMOS scores for all 30,535 aligned chunks |
 
 ---
 
 ## Known Issues & Workarounds
 
 ### `isin_mps_friendly` ImportError
-**Cause:** `coqui-ai-TTS` imports `isin_mps_friendly` from `transformers.pytorch_utils`, which was removed in newer versions of `transformers`.  
-**Fix:** See [Apply the Monkey Patch](#2-apply-the-monkey-patch-required) above.
+**Cause:** Removed from `transformers.pytorch_utils` in newer versions. coqui-ai-TTS still imports it.  
+**Fix:** Apply the monkey patch before any TTS import (see Quick Start).
 
 ### Python 3.12 Compatibility
-**Cause:** The original `TTS` package on PyPI only supports up to Python 3.11.  
-**Fix:** Use `git+https://github.com/idiap/coqui-ai-TTS.git` — the Idiap community fork with Python 3.12 support.
+**Cause:** The original `TTS` PyPI package only supports Python ≤ 3.11.  
+**Fix:** Use `git+https://github.com/idiap/coqui-ai-TTS.git`.
+
+### `vocab.json not found` on inference
+**Cause:** XTTS v2 requires `vocab.json` in the same directory as the checkpoint and config.  
+**Fix:** Download from `https://huggingface.co/coqui/XTTS-v2/resolve/main/vocab.json` and place alongside the model files.
 
 ### `[Errno 9] Bad file descriptor` after collection
-**Cause:** HuggingFace streaming connection tries to fetch more data after the target count is reached and the loop breaks. This is a cleanup issue, not a data error.  
-**Fix:** None needed — collection completes successfully before this error appears. Verify with `len(metadata)`.
+**Cause:** HuggingFace streaming finalizes after the loop breaks at the target count.  
+**Fix:** None needed — data is already saved. Verify with `len(metadata)`.
 
-### `PyGILState_Release` fatal error
-**Cause:** Same as above — Python runtime finalizing while HuggingFace streaming threads are still active.  
-**Fix:** None needed — data is already saved before this occurs.
+### Disk space on Kaggle (20GB limit)
+**Cause:** Each model checkpoint is ~5.3GB. Trainer saves two files after each evaluation.  
+**Fix:** Delete `best_model.pth` immediately after each epoch. Keep only `best_model_XXXX.pth`.
+
+### `grad_norm: 0.0` during training
+**Cause:** A reporting quirk in the XTTS v2 GPT trainer.  
+**Fix:** Not a real issue — loss curves confirm normal learning.
 
 ---
 
 ## Roadmap
 
-**Stage 1 (Current)** — 10,000 samples → fine-tune XTTS v2 → validate pipeline → generate blog audio
+**Stage 1 (Complete)** — 10,000 samples → fine-tune XTTS v2 → validate pipeline → UTMOS evaluation → generate blog audio demo
 
-**Stage 2** — 50,000–100,000 samples → retrain → publish on HuggingFace → open API
+**Stage 2** — 50,000–100,000 samples → retrain → WER + MOS evaluation → HuggingFace release → open inference API
 
 **Stage 3** — Full dataset → research paper → multilingual extension (Ghanaian English + Twi)
 
@@ -406,3 +475,5 @@ MIT
 - [Ghana NLP Community](https://huggingface.co/ghananlpcommunity) for the Ghana English ASR dataset
 - [Idiap Research Institute](https://github.com/idiap/coqui-ai-TTS) for maintaining the Coqui TTS fork
 - [Coqui TTS](https://github.com/coqui-ai/TTS) for the original XTTS v2 implementation
+- [Intron Health](https://huggingface.co/intronhealth/afro-tts) for Afro-TTS — pan-African accented English TTS covering 86 African accents
+- [tarepan/SpeechMOS](https://github.com/tarepan/SpeechMOS) for UTMOS automated MOS prediction
