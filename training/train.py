@@ -6,7 +6,7 @@ import os
 
 import yaml
 from trainer import Trainer, TrainerArgs
-from trainer.trainer import TrainerCallback
+#from trainer.trainer import TrainerCallback
 from TTS.config.shared_configs import BaseDatasetConfig
 from TTS.tts.configs.xtts_config import XttsAudioConfig
 from TTS.tts.datasets import load_tts_samples
@@ -172,7 +172,7 @@ def train(
         model=model,
         train_samples=train_samples,
         eval_samples=eval_samples,
-        callbacks={"disk_cleanup": DiskCleanupCallback()},
+        #callbacks={"disk_cleanup": DiskCleanupCallback()},
     )
 
     trainer.fit()
