@@ -172,7 +172,7 @@ def train(
         model=model,
         train_samples=train_samples,
         eval_samples=eval_samples,
-        callbacks=[DiskCleanupCallback()],
+        callbacks={"disk_cleanup": DiskCleanupCallback()},
     )
 
     trainer.fit()
