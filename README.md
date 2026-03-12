@@ -10,7 +10,7 @@ A fine-tuned XTTS v2 text-to-speech model that speaks English with a natural Gha
 
 Every major TTS system — ElevenLabs, Google, Amazon Polly — speaks with a Western accent by default. Ghanaian English is a distinct, legitimate variety of English spoken by millions, yet it has little representation in open-source TTS.
 
-Some prior work exists. [Afro-TTS](https://huggingface.co/intronhealth/afro-tts) (`intronhealth/afro-tts`) is a pan-African accented English TTS system that covers 86 African accents including Ghanaian — a significant achievement. [Abena AI](https://abena.mobobi.com/) offers a closed-source Ghanaian English TTS product. Both are valuable contributions to the space.
+Some prior work exists. [Afro-TTS](https://huggingface.co/intronhealth/afro-tts) (`intronhealth/afro-tts`) is a pan-African accented English TTS system that covers 86 African accents including Ghanaian — a significant achievement. [Abena AI](https://abena.ai) offers a closed-source Ghanaian English TTS product. Both are valuable contributions to the space.
 
 okyeame-tts takes a different approach: **depth over breadth**. Rather than covering many African accents broadly, it trains exclusively on Ghanaian English speech — 30,000+ aligned audio chunks from the Ghana English ASR dataset — optimizing specifically for the phonetic and prosodic patterns of Ghanaian English. The Ghanaian accent is the native voice of the model, not one accent among many.
 
@@ -54,7 +54,7 @@ AUDIO OUTPUT
 
 **What fine-tuning changes:** The GPT-2 decoder learns Ghanaian English phonetic and prosodic patterns from the training data. The speaker encoder and vocoder are frozen — voice cloning capability and audio quality are preserved.
 
-**Why eval loss plateaus:** With 10,000 samples the decoder overfits after ~1 epoch. Eval loss stopped improving at 3.527. Training loss continued decreasing. This is expected at Stage 1 scale — the model has learned the accent but needs more data to generalize further.
+**Why eval loss plateaus:** The decoder overfits after ~1 epoch on the Stage 1 subset. Eval loss stopped improving at 3.527. Training loss continued decreasing. Stage 2 addresses this by training on a larger, more diverse subset of the full 2,700-hour dataset.
 
 ---
 
@@ -110,31 +110,37 @@ pt_utils.isin_mps_friendly = isin_mps_friendly
 ### 3. Run Inference
 
 ```python
-# Apply monkey patch first (see above)
-from TTS.api import TTS
+import torch
+import numpy as np
+import scipy.io.wavfile as wav_io
+from TTS.tts.configs.xtts_config import XttsConfig
+from TTS.tts.models.xtts import Xtts
 
-# Load fine-tuned model
-tts = TTS()
-tts.load_tts_model_by_path(
-    model_path="path/to/best_model_9013.pth",
-    config_path="path/to/config.json",
-)
+# Load model directly using XTTS classes
+config = XttsConfig()
+config.load_json("path/to/config.json")
+model = Xtts.init_from_config(config)
+model.load_checkpoint(config, checkpoint_path="path/to/best_model_9013.pth", eval=True)
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model = model.to(device)
 
 # vocab.json must be in the same directory as config.json
 # Download from: https://huggingface.co/coqui/XTTS-v2/resolve/main/vocab.json
 
-# Generate speech (clones voice from reference wav)
-tts.tts_to_file(
-    text="The government has announced new policies to support local businesses in Ghana.",
+# Generate speech — single sentence
+outputs = model.synthesize(
+    "The government has announced new policies to support local businesses in Ghana.",
+    config,
     speaker_wav="path/to/reference_speaker.wav",
+    gpt_cond_len=6,
     language="en",
-    file_path="output.wav"
 )
+wav_io.write("output.wav", config.audio.output_sample_rate, outputs["wav"])
 ```
 
 > **Reference audio:** Any clean wav file from the training corpus can be used as a speaker reference. The model clones the voice characteristics while preserving the Ghanaian accent. UTMOS scoring (see Evaluation) can be used to identify the highest quality reference speakers.
 
-> **Long text:** XTTS v2 warns for inputs over 250 characters but handles them internally. For production use, split text at sentence boundaries and concatenate audio outputs for cleaner results.
+> **Long text:** For best quality, split text at sentence boundaries and concatenate outputs with a short silence between them rather than passing the full passage at once.
 
 ---
 
@@ -147,7 +153,7 @@ paths:
   metadata: '/kaggle/working/metadata.pkl'
   audio_dir: '/kaggle/working/audio'
   output: '/kaggle/working'
-  coqui_output: '/kaggle/working/coqui_format'
+  ljspeech_output: '/kaggle/working/ljspeech'
 
 dataset:
   name: 'ghananlpcommunity/ghana-english-asr-2700hrs'
@@ -405,7 +411,7 @@ pt_utils.isin_mps_friendly = isin_mps_friendly
 | `derricknyarko/okyeame-clean-samples` | metadata.pkl + audio wavs | Step 1 output |
 | `derricknyarko/okyeame-aligned-chunks-v2` | aligned_metadata.pkl + aligned_audio/ | Step 2 output |
 | `derricknyarko/okyeame-coqui-format` | metadata_train.csv + metadata_eval.csv | Step 3 CSVs — regenerate wavs each session |
-| `derricknyarko/okyeame-xtts-epoch2` | best_model_9013.pth + config.json | Stage 1 final model |
+| `derricknyarko/okyeame-xtts-final-stage1` | best_model_9013.pth + config.json | Stage 1 final model |
 | `derricknyarko/okyeame-xtts-utmos-scores` | okyeame-xtts-utmos-scores.csv | UTMOS scores for all 30,535 aligned chunks |
 
 ---
@@ -440,11 +446,11 @@ pt_utils.isin_mps_friendly = isin_mps_friendly
 
 ## Roadmap
 
-**Stage 1 (Complete)** — 10,000 samples → fine-tune XTTS v2 → validate pipeline → UTMOS evaluation → generate blog audio demo
+**Stage 1 (Complete)** — 10,000 sample subset → fine-tune XTTS v2 → validate pipeline → UTMOS evaluation → live demo
 
-**Stage 2** — 50,000–100,000 samples → retrain → WER + MOS evaluation → HuggingFace release → open inference API
+**Stage 2** — Larger, more diverse subset of the 2,700-hour dataset → retrain → WER + MOS evaluation → HuggingFace model release → open inference API
 
-**Stage 3** — Full dataset → research paper → multilingual extension (Ghanaian English + Twi)
+**Stage 3** — Full dataset training → conversational domain expansion → research paper → multilingual extension (Ghanaian English + Twi)
 
 ---
 
@@ -464,7 +470,49 @@ git+https://github.com/idiap/coqui-ai-TTS.git
 
 ---
 
-## License
+## Demo
+
+A live demo is available on HuggingFace Spaces — paste any text, pick a preset Ghanaian voice or upload your own 6–10 second clip, and generate speech instantly.
+
+**[▶ Try okyeame-tts on HuggingFace Spaces](https://huggingface.co/spaces/nyarderr/okyeame-tts)**
+
+---
+
+## Known Limitations
+
+These limitations are inherited from the training dataset (`ghananlpcommunity/ghana-english-asr-2700hrs`):
+
+- **Broadcast domain only:** The dataset consists of broadcast news speech. The model may not generalise as naturally to conversational Ghanaian English — informal speech, code-switching, and everyday register are underrepresented.
+- **Speaker diversity:** Speaker diversity across the corpus has not been formally audited. The model may reflect the accent and prosody patterns of a narrower speaker demographic than the full range of Ghanaian English speakers.
+- **Transcription quality:** Transcriptions may contain occasional errors in proper nouns, which can affect pronunciation of names and places.
+
+Stage 2 and Stage 3 will address domain coverage through broader data selection and potential supplementary data collection.
+
+---
+
+
+
+Contributions are welcome. The project is at Stage 1 — there is meaningful work to be done at every level.
+
+**Data**
+The training corpus (`ghananlpcommunity/ghana-english-asr-2700hrs`) contains 2,700 hours of Ghanaian English speech — substantial in volume. The current limitation is domain: the dataset is broadcast news, which means the model may not generalise as well to conversational English. Stage 2 will train on a larger, more diverse subset. If you have access to conversational Ghanaian English recordings and can help expand the domain coverage, open an issue.
+
+**Voices**
+If you are a Ghanaian English speaker and would like your voice included as a preset in the demo, record a clean 10–30 second audio clip and open an issue with the recording attached.
+
+**Code**
+- Bug fixes and workaround improvements are always welcome
+- Evaluation scripts (WER, MOS, SECS) are planned for Stage 2 — contributions welcome
+- If you have experience with XTTS v2 training at scale, open an issue to discuss Stage 2 approach
+
+**Research**
+If you are a researcher working on African speech synthesis or low-resource TTS and want to collaborate on Stage 3 (full dataset, paper), reach out via GitHub issues.
+
+Please open an issue before starting significant work so we can coordinate.
+
+---
+
+
 
 MIT
 
@@ -472,8 +520,22 @@ MIT
 
 ## Acknowledgements
 
-- [Ghana NLP Community](https://huggingface.co/ghananlpcommunity) for the Ghana English ASR dataset
+- [Ghana NLP Community](https://huggingface.co/ghananlpcommunity) for the Ghana English ASR dataset (Owusu, Mich-Seth, 2026)
 - [Idiap Research Institute](https://github.com/idiap/coqui-ai-TTS) for maintaining the Coqui TTS fork
 - [Coqui TTS](https://github.com/coqui-ai/TTS) for the original XTTS v2 implementation
 - [Intron Health](https://huggingface.co/intronhealth/afro-tts) for Afro-TTS — pan-African accented English TTS covering 86 African accents
 - [tarepan/SpeechMOS](https://github.com/tarepan/SpeechMOS) for UTMOS automated MOS prediction
+
+## Citation
+
+This project builds on the Ghana English ASR dataset:
+
+```bibtex
+@dataset{ghana_english_asr,
+  author    = {Owusu, Mich-Seth},
+  title     = {Ghana English ASR Dataset},
+  year      = {2026},
+  publisher = {Hugging Face},
+  url       = {https://huggingface.co/datasets/ghananlpcommunity/ghana-english-asr-2700hrs}
+}
+```
