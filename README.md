@@ -292,7 +292,7 @@ python training/train.py \
   --train_csv /kaggle/working/coqui_format/metadata_train.csv \
   --eval_csv /kaggle/working/coqui_format/metadata_eval.csv \
   --output_dir /kaggle/working \
-  --restore_path /kaggle/input/datasets/derricknyarko/okyeame-xtts-final-stage1/best_model_9013.pth \
+  --restore_path /kaggle/input/datasets/derricknyarko/okyeame-xtts-epoch2/best_model_9013.pth \
   --epochs 1
 ```
 
@@ -411,7 +411,7 @@ pt_utils.isin_mps_friendly = isin_mps_friendly
 | `derricknyarko/okyeame-clean-samples` | metadata.pkl + audio wavs | Step 1 output |
 | `derricknyarko/okyeame-aligned-chunks-v2` | aligned_metadata.pkl + aligned_audio/ | Step 2 output |
 | `derricknyarko/okyeame-coqui-format` | metadata_train.csv + metadata_eval.csv | Step 3 CSVs — regenerate wavs each session |
-| `derricknyarko/okyeame-xtts-final-stage1` | best_model_9013.pth + config.json | Stage 1 final model |
+| `derricknyarko/okyeame-xtts-epoch2` | best_model_9013.pth + config.json | Stage 1 final model |
 | `derricknyarko/okyeame-xtts-utmos-scores` | okyeame-xtts-utmos-scores.csv | UTMOS scores for all 30,535 aligned chunks |
 
 ---
