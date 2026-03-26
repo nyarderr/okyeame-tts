@@ -43,7 +43,7 @@ def format_coqui(aligned_metadata_path, output_dir, eval_split=0.1, audio_dir=No
     """
     Converts aligned chunks into Coqui format for XTTS v2 fine-tuning.
 
-    LJSpeech structure:
+    Coqui format:
         dataset/
         ├── wavs/
         │   ├── 00000.wav (resampled to 22050 Hz)
